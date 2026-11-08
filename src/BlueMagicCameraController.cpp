@@ -27,6 +27,11 @@ uint8_t *BlueMagicCameraController::settingsData()
   return _state->settingsData();
 }
 
+size_t BlueMagicCameraController::settingsDataLength()
+{
+  return _state->settingsDataLength();
+}
+
 bool BlueMagicCameraController::timecodeChanged()
 {
   return _state->timecodeChanged();
@@ -37,6 +42,11 @@ uint8_t *BlueMagicCameraController::timecodeData()
   return _state->timecodeData();
 }
 
+size_t BlueMagicCameraController::timecodeDataLength()
+{
+  return _state->timecodeDataLength();
+}
+
 bool BlueMagicCameraController::statusChanged()
 {
   return _state->statusChanged();
@@ -45,6 +55,11 @@ bool BlueMagicCameraController::statusChanged()
 uint8_t *BlueMagicCameraController::statusData()
 {
   return _state->statusData();
+}
+
+size_t BlueMagicCameraController::statusDataLength()
+{
+  return _state->statusDataLength();
 }
 
 uint32_t BlueMagicCameraController::mapFloat(float value)

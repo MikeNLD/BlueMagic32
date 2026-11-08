@@ -16,6 +16,17 @@ BlueMagicState::BlueMagicState()
 {
 }
 
+void BlueMagicState::storeData(uint8_t *target, size_t *targetLength, bool *changedFlag, bool changed, uint8_t *data, size_t length)
+{
+    if (length > BLUEMAGIC_MAX_DATA_LENGTH)
+    {
+        length = BLUEMAGIC_MAX_DATA_LENGTH;
+    }
+    memcpy(target, data, length);
+    *targetLength = length;
+    *changedFlag = changed;
+}
+
 void BlueMagicState::setChanged(bool changed)
 {
     _changed = changed;
@@ -28,10 +39,9 @@ bool BlueMagicState::changed()
     return changed;
 }
 
-void BlueMagicState::settingsNotify(bool changed, uint8_t *data)
+void BlueMagicState::settingsNotify(bool changed, uint8_t *data, size_t length)
 {
-    _settingsChanged = changed;
-    _settingsData = data;
+    storeData(_settingsData, &_settingsLength, &_settingsChanged, changed, data, length);
 }
 
 bool BlueMagicState::settingsChanged()
@@ -46,10 +56,14 @@ uint8_t *BlueMagicState::settingsData()
     return _settingsData;
 }
 
-void BlueMagicState::timecodeNotify(bool changed, uint8_t *data)
+size_t BlueMagicState::settingsDataLength()
 {
-    _timecodeChanged = changed;
-    _timecodeData = data;
+    return _settingsLength;
+}
+
+void BlueMagicState::timecodeNotify(bool changed, uint8_t *data, size_t length)
+{
+    storeData(_timecodeData, &_timecodeLength, &_timecodeChanged, changed, data, length);
 }
 
 bool BlueMagicState::timecodeChanged()
@@ -64,10 +78,14 @@ uint8_t *BlueMagicState::timecodeData()
     return _timecodeData;
 }
 
-void BlueMagicState::statusNotify(bool changed, uint8_t *data)
+size_t BlueMagicState::timecodeDataLength()
 {
-    _statusChanged = changed;
-    _statusData = data;
+    return _timecodeLength;
+}
+
+void BlueMagicState::statusNotify(bool changed, uint8_t *data, size_t length)
+{
+    storeData(_statusData, &_statusLength, &_statusChanged, changed, data, length);
 }
 
 bool BlueMagicState::statusChanged()
@@ -80,6 +98,11 @@ bool BlueMagicState::statusChanged()
 uint8_t *BlueMagicState::statusData()
 {
     return _statusData;
+}
+
+size_t BlueMagicState::statusDataLength()
+{
+    return _statusLength;
 }
 
 void BlueMagicState::setCameraStatus(uint8_t status)

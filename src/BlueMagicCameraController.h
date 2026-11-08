@@ -42,12 +42,15 @@ public:
 
   bool settingsChanged();
   uint8_t *settingsData();
+  size_t settingsDataLength();
 
   bool timecodeChanged();
   uint8_t *timecodeData();
+  size_t timecodeDataLength();
 
   bool statusChanged();
   uint8_t *statusData();
+  size_t statusDataLength();
 
   void setCamera(uint8_t index);
   void custom(uint8_t *data, size_t len);

@@ -3,6 +3,8 @@
 #define BlueMagicState_h
 #include "Arduino.h"
 
+#define BLUEMAGIC_MAX_DATA_LENGTH 64
+
 class BlueMagicState
 {
 private:
@@ -35,13 +37,19 @@ private:
 
     bool _changed = false;
 
-    uint8_t *_settingsData = nullptr;
-    uint8_t *_timecodeData = nullptr;
-    uint8_t *_statusData = nullptr;
+    uint8_t _settingsData[BLUEMAGIC_MAX_DATA_LENGTH] = {0};
+    uint8_t _timecodeData[BLUEMAGIC_MAX_DATA_LENGTH] = {0};
+    uint8_t _statusData[BLUEMAGIC_MAX_DATA_LENGTH] = {0};
+
+    size_t _settingsLength = 0;
+    size_t _timecodeLength = 0;
+    size_t _statusLength = 0;
 
     bool _settingsChanged = false;
     bool _timecodeChanged = false;
     bool _statusChanged = false;
+
+    void storeData(uint8_t *target, size_t *targetLength, bool *changedFlag, bool changed, uint8_t *data, size_t length);
 
 public:
     static BlueMagicState *getInstance();
@@ -49,17 +57,20 @@ public:
     void setChanged(bool changed);
     bool changed();
 
-    void settingsNotify(bool changed, uint8_t *data);
+    void settingsNotify(bool changed, uint8_t *data, size_t length);
     bool settingsChanged();
     uint8_t *settingsData();
+    size_t settingsDataLength();
 
-    void timecodeNotify(bool changed, uint8_t *data);
+    void timecodeNotify(bool changed, uint8_t *data, size_t length);
     bool timecodeChanged();
     uint8_t *timecodeData();
+    size_t timecodeDataLength();
 
-    void statusNotify(bool changed, uint8_t *data);
+    void statusNotify(bool changed, uint8_t *data, size_t length);
     bool statusChanged();
     uint8_t *statusData();
+    size_t statusDataLength();
 
     void setCameraStatus(uint8_t status);
     uint8_t getCameraStatus();

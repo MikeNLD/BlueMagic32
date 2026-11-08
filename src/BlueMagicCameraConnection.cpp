@@ -26,7 +26,7 @@ static void cameraStatusNotify(BLERemoteCharacteristic *pBLERemoteCharacteristic
     return;
   }
   BlueMagicState *blu = BlueMagicState::getInstance();
-  blu->statusNotify(true, pData);
+  blu->statusNotify(true, pData, length);
   blu->setCameraStatus(pData[0]);
 }
 
@@ -37,7 +37,7 @@ static void timeCodeNotify(BLERemoteCharacteristic *pBLERemoteCharacteristic, ui
     return;
   }
   BlueMagicState *blu = BlueMagicState::getInstance();
-  blu->timecodeNotify(true, pData);
+  blu->timecodeNotify(true, pData, length);
   // timecode
   uint8_t H, M, S, f;
   H = (pData[11] / 16 * 10) + (pData[11] % 16);
@@ -50,7 +50,7 @@ static void timeCodeNotify(BLERemoteCharacteristic *pBLERemoteCharacteristic, ui
 static void controlNotify(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify)
 {
   BlueMagicState *blu = BlueMagicState::getInstance();
-  blu->settingsNotify(true, pData);
+  blu->settingsNotify(true, pData, length);
   bool changed = false;
 
   if (length < 10 || pData[0] != 255)
