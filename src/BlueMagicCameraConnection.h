@@ -54,7 +54,7 @@ private:
   int _connected;
 
   BLEDevice _device;
-  BLEClient *_client;
+  BLEClient *_client = nullptr;
 
   BLEAddress _cameraAddress;
   bool _hasCameraAddress = false;

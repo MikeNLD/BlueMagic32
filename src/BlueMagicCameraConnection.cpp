@@ -310,9 +310,17 @@ bool BlueMagicCameraConnection::available()
 
 bool BlueMagicCameraConnection::connectToServer(BLEAddress address)
 {
-  _client = _device.createClient();
+  if (_client == nullptr)
+  {
+    _client = _device.createClient();
+  }
   setState(CAMERA_CONNECTING);
-  _client->connect(address);
+  if (!_client->connect(address))
+  {
+    Serial.println("Failed to connect to camera");
+    setState(CAMERA_DISCONNECTED);
+    return false;
+  }
 
   BLERemoteService *pRemoteService = _client->getService(BmdCameraService);
   if (pRemoteService == nullptr)
