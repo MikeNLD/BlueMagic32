@@ -57,9 +57,19 @@ void BlueMagicCameraController::setCamera(uint8_t index)
   _cameraIndex = index;
 }
 
+bool BlueMagicCameraController::write(uint8_t *data, size_t len)
+{
+  BLERemoteCharacteristic *characteristic = _cameraControl;
+  if (characteristic == nullptr)
+  {
+    return false;
+  }
+  return characteristic->writeValue(data, len, true);
+}
+
 void BlueMagicCameraController::custom(uint8_t *data, size_t len)
 {
-  _cameraControl->writeValue(data, len, true);
+  write(data, len);
 }
 
 uint8_t BlueMagicCameraController::getCameraStatus()
@@ -79,7 +89,7 @@ void BlueMagicCameraController::record(bool record)
   {
     data[8] = 2;
   }
-  _cameraControl->writeValue(data, 12, true);
+  write(data, 12);
 }
 
 void BlueMagicCameraController::toggleRecording()
@@ -90,7 +100,7 @@ void BlueMagicCameraController::toggleRecording()
   {
     data[8] = 2;
   }
-  _cameraControl->writeValue(data, 12, true);
+  write(data, 12);
 }
 
 bool BlueMagicCameraController::isRecording()
@@ -110,7 +120,7 @@ void BlueMagicCameraController::play(bool play)
   {
     data[8] = 1;
   }
-  _cameraControl->writeValue(data, 12, true);
+  write(data, 12);
 }
 
 bool BlueMagicCameraController::isPlaying()
@@ -126,7 +136,7 @@ bool BlueMagicCameraController::isPlaying()
 void BlueMagicCameraController::preview(bool preview)
 {
   uint8_t data[12] = {255, 5, 0, 0, 10, 1, 1, 0, 0, 0, 0, 0};
-  _cameraControl->writeValue(data, 12, true);
+  write(data, 12);
 }
 
 bool BlueMagicCameraController::isPreviewing()
@@ -146,7 +156,7 @@ void BlueMagicCameraController::ois(bool enabled)
   {
     data[8] = 1;
   }
-  _cameraControl->writeValue(data, 10, true);
+  write(data, 10);
 }
 
 bool BlueMagicCameraController::getOis()
@@ -159,7 +169,7 @@ void BlueMagicCameraController::codec(CODEC_TYPE c, CODEC_QUALITY q)
   uint8_t data[12] = {255, 5, 0, 0, 10, 0, 1, 0, 0, 0, 0, 0};
   data[8] = c;
   data[9] = q;
-  _cameraControl->writeValue(data, 12, true);
+  write(data, 12);
 }
 
 int8_t BlueMagicCameraController::getCodecType()
@@ -183,13 +193,13 @@ void BlueMagicCameraController::focus(float focus)
   uint8_t xhigh = (val >> 8);
 
   uint8_t data[10] = {255, 6, 0, 0, 0, 0, 128, 0, xlow, xhigh};
-  _cameraControl->writeValue(data, 10, true);
+  write(data, 10);
 }
 
 void BlueMagicCameraController::instantAutoFocus()
 {
   uint8_t data[12] = {255, 4, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0};
-  _cameraControl->writeValue(data, 12, true);
+  write(data, 12);
 }
 
 float BlueMagicCameraController::getFocus()
@@ -208,7 +218,7 @@ void BlueMagicCameraController::zoom(float zoom)
   uint8_t xhigh = (val >> 8);
 
   uint8_t data[10] = {255, 6, 0, 0, 0, 8, 128, 0, xlow, xhigh};
-  _cameraControl->writeValue(data, 10, true);
+  write(data, 10);
 }
 
 float BlueMagicCameraController::getZoom()
@@ -228,13 +238,13 @@ void BlueMagicCameraController::aperture(float value)
 
   uint8_t data[10] = {255, 6, 0, 0, 0, 3, 128, 0, xlow, xhigh};
 
-  _cameraControl->writeValue(data, 10, true);
+  write(data, 10);
 }
 
 void BlueMagicCameraController::autoAperture()
 {
   uint8_t data[12] = {255, 4, 0, 0, 0, 5, 1, 0, 0, 0, 0, 0};
-  _cameraControl->writeValue(data, 12, true);
+  write(data, 12);
 }
 
 float BlueMagicCameraController::getAperture()
@@ -253,7 +263,7 @@ void BlueMagicCameraController::iso(int32_t iso)
 
   uint8_t data[12] = {255, 8, 0, 0, 1, 14, 3, 0, xlow, xhigh, 0, 0};
 
-  _cameraControl->writeValue(data, 12, true);
+  write(data, 12);
 }
 
 int32_t BlueMagicCameraController::getIso()
@@ -272,7 +282,7 @@ void BlueMagicCameraController::shutterAngle(float shutter)
   uint8_t h = (int(shutter) >> 8);
 
   uint8_t data[12] = {255, 8, 0, 0, 1, 11, 3, 0, l, h, 0, 0};
-  _cameraControl->writeValue(data, 12, true);
+  write(data, 12);
 }
 
 void BlueMagicCameraController::shutterSpeed(int32_t shutter)
@@ -284,7 +294,7 @@ void BlueMagicCameraController::shutterSpeed(int32_t shutter)
   uint8_t h = (shutter >> 8);
 
   uint8_t data[12] = {255, 8, 0, 0, 1, 12, 3, 0, l, h, 0, 0};
-  _cameraControl->writeValue(data, 12, true);
+  write(data, 12);
 }
 
 float BlueMagicCameraController::getShutter()
@@ -306,13 +316,13 @@ void BlueMagicCameraController::whiteBalance(int16_t whiteBalance, int16_t tint)
   uint8_t tH = (tint >> 8);
 
   uint8_t data[12] = {255, 8, 0, 0, 1, 2, 2, 0, wbL, wbH, tL, tH};
-  _cameraControl->writeValue(data, 12, true);
+  write(data, 12);
 }
 
 void BlueMagicCameraController::autoWhiteBalance()
 {
   uint8_t data[12] = {255, 4, 0, 0, 1, 3, 1, 0, 0, 0, 0, 0};
-  _cameraControl->writeValue(data, 12, true);
+  write(data, 12);
 }
 
 int16_t BlueMagicCameraController::getWhiteBalance()
@@ -335,7 +345,7 @@ void BlueMagicCameraController::frameRate(int16_t frameRate)
 
   // uint8_t data[18] = {255, 8, 0, 0, 1, 9, 2, 0, frL, frH, 0, 0, 0, 0, 0, 0, 0, 0};
   uint8_t data[18] = {255, 14, 0, 0, 1, 9, 2, 0, frL, frH, frL, frH, 0, 0, 0, 0, 0, 0};
-  _cameraControl->writeValue(data, 12, true);
+  write(data, 12);
 }
 
 int16_t BlueMagicCameraController::getFrameRate()
@@ -352,7 +362,7 @@ void BlueMagicCameraController::sensorFrameRate(int16_t sensorFrameRate)
   uint8_t sfrH = (sensorFrameRate >> 8);
 
   uint8_t data[18] = {255, 8, 0, 0, 1, 9, 2, 0, 0, 0, sfrL, sfrH, 0, 0, 0, 0, 0, 0};
-  _cameraControl->writeValue(data, 18, true);
+  write(data, 18);
 }
 
 int16_t BlueMagicCameraController::getSensorFrameRate()

@@ -116,10 +116,11 @@ public:
 private:
   friend class BlueMagicCameraConnection;
   BlueMagicCameraController(BLERemoteCharacteristic *outgoingCameraControl);
-  BLERemoteCharacteristic *_cameraControl;
+  BLERemoteCharacteristic *volatile _cameraControl;
   BlueMagicState *_state = BlueMagicState::getInstance();
   uint8_t _cameraIndex = 255;
   uint32_t mapFloat(float value);
+  bool write(uint8_t *data, size_t len);
 };
 
 #endif
