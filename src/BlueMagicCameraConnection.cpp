@@ -152,16 +152,29 @@ static void controlNotify(BLERemoteCharacteristic *pBLERemoteCharacteristic, uin
   blu->setChanged(changed);
 }
 
+static BLEAddress foundCameraAddress;
+static bool cameraFound = false;
+static bool candidateFound = false;
+
 class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
 {
-
   void onResult(BLEAdvertisedDevice advertisedDevice)
   {
-    Serial.println("BLE Advertised Device found: ");
-
-    if (advertisedDevice.haveServiceUUID() && advertisedDevice.getServiceUUID().equals(ServiceId))
+    if (cameraFound || !advertisedDevice.haveServiceUUID())
     {
+      return;
+    }
+
+    if (advertisedDevice.isAdvertisingService(BmdCameraService))
+    {
+      foundCameraAddress = advertisedDevice.getAddress();
+      cameraFound = true;
       advertisedDevice.getScan()->stop();
+    }
+    else if (!candidateFound && advertisedDevice.isAdvertisingService(ServiceId))
+    {
+      foundCameraAddress = advertisedDevice.getAddress();
+      candidateFound = true;
     }
   }
 };
@@ -274,6 +287,8 @@ bool BlueMagicCameraConnection::scan(bool active, int duration)
   }
   else
   {
+    cameraFound = false;
+    candidateFound = false;
     _bleScan = _device.getScan();
     _bleScan->clearResults();
     _bleScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
@@ -304,6 +319,8 @@ bool BlueMagicCameraConnection::connectToServer(BLEAddress address)
   {
     Serial.print("Failed to find our service UUID: ");
     Serial.println(BmdCameraService.toString().c_str());
+    _client->disconnect();
+    setState(CAMERA_DISCONNECTED);
     return false;
   }
 
@@ -318,6 +335,8 @@ bool BlueMagicCameraConnection::connectToServer(BLEAddress address)
   {
     Serial.print("Failed to find our characteristic UUID: ");
     Serial.println(OutgoingCameraControl.toString().c_str());
+    _client->disconnect();
+    setState(CAMERA_DISCONNECTED);
     return false;
   }
 
@@ -326,6 +345,8 @@ bool BlueMagicCameraConnection::connectToServer(BLEAddress address)
   {
     Serial.print("Failed to find our characteristic UUID: ");
     Serial.println(IncomingCameraControl.toString().c_str());
+    _client->disconnect();
+    setState(CAMERA_DISCONNECTED);
     return false;
   }
   _incomingCameraControl->registerForNotify(controlNotify, false);
@@ -335,6 +356,8 @@ bool BlueMagicCameraConnection::connectToServer(BLEAddress address)
   {
     Serial.print("Failed to find our characteristic UUID: ");
     Serial.println(Timecode.toString().c_str());
+    _client->disconnect();
+    setState(CAMERA_DISCONNECTED);
     return false;
   }
   _timecode->registerForNotify(timeCodeNotify);
@@ -344,6 +367,8 @@ bool BlueMagicCameraConnection::connectToServer(BLEAddress address)
   {
     Serial.print("Failed to find our characteristic UUID: ");
     Serial.println(CameraStatus.toString().c_str());
+    _client->disconnect();
+    setState(CAMERA_DISCONNECTED);
     return false;
   }
   _cameraStatus->registerForNotify(cameraStatusNotify);
@@ -403,11 +428,9 @@ BlueMagicCameraController *BlueMagicCameraConnection::connect(uint8_t index)
 
   if (scanned)
   {
-    int count = _bleScan->getResults()->getCount();
-    if (count > 0)
+    if (cameraFound || candidateFound)
     {
-      int foundIndex = count - 1;
-      address = _bleScan->getResults()->getDevice(foundIndex).getAddress();
+      address = foundCameraAddress;
       ok = connectToServer(address);
     }
   }
