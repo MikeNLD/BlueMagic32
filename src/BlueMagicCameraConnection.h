@@ -3,10 +3,7 @@
 #include <BLEDevice.h>
 #endif
 
-#ifndef Preferences_h
 #include <Preferences.h>
-#define PREF_INCLUDED false
-#endif
 
 #ifndef BlueMagicCameraConnection_h
 
@@ -47,7 +44,7 @@ public:
 
 private:
   String _name;
-  Preferences *_pref;
+  Preferences *_pref = nullptr;
   bool _init = false;
 
   bool _authenticated;

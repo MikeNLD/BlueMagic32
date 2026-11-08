@@ -237,6 +237,12 @@ void BlueMagicCameraConnection::begin()
   begin("BlueMagic32");
 }
 
+void BlueMagicCameraConnection::begin(String name, Preferences &pref)
+{
+  _pref = &pref;
+  begin(name);
+}
+
 void BlueMagicCameraConnection::begin(String name)
 {
 
@@ -248,7 +254,7 @@ void BlueMagicCameraConnection::begin(String name)
   _name = name;
   setState(CAMERA_DISCONNECTED);
 
-  if (!PREF_INCLUDED)
+  if (_pref == nullptr)
   {
     _pref = new Preferences();
   }
