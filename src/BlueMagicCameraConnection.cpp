@@ -1,5 +1,9 @@
 #include "BlueMagicCameraConnection.h"
 
+#if defined(CONFIG_NIMBLE_ENABLED)
+#include <host/ble_store.h>
+#endif
+
 BLERemoteCharacteristic *BlueMagicCameraConnection::_cameraStatus;
 BLERemoteCharacteristic *BlueMagicCameraConnection::_deviceName;
 BLERemoteCharacteristic *BlueMagicCameraConnection::_timecode;
@@ -200,11 +204,6 @@ class MySecurity : public BLESecurityCallbacks
   {
     return true;
   }
-
-  void onAuthenticationComplete(esp_ble_auth_cmpl_t auth_cmpl)
-  {
-    int index = 1;
-  }
 };
 
 BlueMagicCameraConnection::BlueMagicCameraConnection()
@@ -254,7 +253,9 @@ void BlueMagicCameraConnection::begin(String name)
 
   _device.init(_name.c_str());
   _device.setPower(ESP_PWR_LVL_P9);
-  _device.setEncryptionLevel(ESP_BLE_SEC_ENCRYPT);
+#if defined(CONFIG_BLUEDROID_ENABLED)
+  BLESecurity::setEncryptionLevel(ESP_BLE_SEC_ENCRYPT);
+#endif
   _device.setSecurityCallbacks(new MySecurity());
 
   BLESecurity *pSecurity = new BLESecurity();
@@ -443,9 +444,10 @@ void BlueMagicCameraConnection::clearPairing()
   {
     disconnect();
   }
-  if (*getCameraAddress()->getNative() != nullptr)
+#if defined(CONFIG_BLUEDROID_ENABLED)
+  if (getCameraAddress()->getNative() != nullptr)
   {
-    esp_ble_remove_bond_device(*getCameraAddress()->getNative());
+    esp_ble_remove_bond_device(getCameraAddress()->getNative());
   }
 
   int dev_num = esp_ble_get_bond_device_num();
@@ -460,6 +462,9 @@ void BlueMagicCameraConnection::clearPairing()
   }
 
   free(dev_list);
+#else
+  ble_store_clear();
+#endif
   setAuthentication(false);
   // setCameraAddress(nullptr);
   _pref->begin(_name.c_str(), false);

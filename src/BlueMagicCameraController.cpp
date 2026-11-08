@@ -64,7 +64,7 @@ void BlueMagicCameraController::custom(uint8_t *data, size_t len)
 
 uint8_t BlueMagicCameraController::getCameraStatus()
 {
-  _state->getCameraStatus();
+  return _state->getCameraStatus();
 }
 
 int8_t BlueMagicCameraController::getTransportMode()
