@@ -194,6 +194,8 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
   }
 };
 
+static MyAdvertisedDeviceCallbacks advertisedDeviceCallbacks;
+
 class BlueMagicClientCallbacks : public BLEClientCallbacks
 {
 public:
@@ -264,6 +266,10 @@ BlueMagicCameraConnection::~BlueMagicCameraConnection()
   delete _client;
   delete _clientCallbacks;
   delete _cameraControl;
+  if (_ownsPref)
+  {
+    delete _pref;
+  }
   _init = false;
   BLEDevice::deinit(true);
 }
@@ -293,6 +299,7 @@ void BlueMagicCameraConnection::begin(String name)
   if (_pref == nullptr)
   {
     _pref = new Preferences();
+    _ownsPref = true;
   }
 
   _pref->begin(_name.c_str(), false);
@@ -333,9 +340,10 @@ bool BlueMagicCameraConnection::scan(bool active, int duration)
     candidateFound = false;
     _bleScan = BLEDevice::getScan();
     _bleScan->clearResults();
-    _bleScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
+    _bleScan->setAdvertisedDeviceCallbacks(&advertisedDeviceCallbacks);
     _bleScan->setActiveScan(active);
     _bleScan->start(duration);
+    _bleScan->clearResults();
   }
   return true;
 }

@@ -54,6 +54,7 @@ private:
 
   String _name;
   Preferences *_pref = nullptr;
+  bool _ownsPref = false;
   bool _init = false;
 
   bool _authenticated = false;
@@ -71,7 +72,7 @@ private:
   static BLERemoteCharacteristic *_cameraStatus;
   static BLERemoteCharacteristic *_deviceName;
 
-  BLEScan *_bleScan;
+  BLEScan *_bleScan = nullptr;
 
   BlueMagicCameraController *_cameraControl = nullptr;
 
