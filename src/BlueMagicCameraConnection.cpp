@@ -169,6 +169,7 @@ static void controlNotify(BLERemoteCharacteristic *pBLERemoteCharacteristic, uin
 static BLEAddress foundCameraAddress;
 static bool cameraFound = false;
 static bool candidateFound = false;
+static PinCodeCallback pinCodeCallback = nullptr;
 
 class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
 {
@@ -213,6 +214,11 @@ class MySecurity : public BLESecurityCallbacks
 {
   uint32_t onPassKeyRequest()
   {
+    if (pinCodeCallback)
+    {
+      return pinCodeCallback();
+    }
+
     // code snippet from jeppo7745 https://www.instructables.com/id/Magic-Button-4k-the-20USD-BMPCC4k-Remote/
     Serial.println("---> PLEASE ENTER 6 DIGIT PIN (end with ENTER) : ");
     int pinCode = 0;
@@ -342,6 +348,11 @@ int BlueMagicCameraConnection::connected()
 bool BlueMagicCameraConnection::available()
 {
   return connected() == CAMERA_CONNECTED && (_cameraControl != nullptr);
+}
+
+void BlueMagicCameraConnection::setPinCodeCallback(PinCodeCallback callback)
+{
+  pinCodeCallback = callback;
 }
 
 void BlueMagicCameraConnection::onCameraDisconnected()

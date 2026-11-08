@@ -4,6 +4,7 @@
 #endif
 
 #include <Preferences.h>
+#include <functional>
 
 #ifndef BlueMagicCameraConnection_h
 
@@ -19,6 +20,8 @@ enum CONNECTION_STATE
   CAMERA_DISCONNECTED = 2,
   CAMERA_CONNECTING = 3
 };
+
+typedef std::function<uint32_t()> PinCodeCallback;
 
 class BlueMagicClientCallbacks;
 
@@ -43,6 +46,8 @@ public:
   void clearPairing();
 
   bool available();
+
+  void setPinCodeCallback(PinCodeCallback callback);
 
 private:
   friend class BlueMagicClientCallbacks;
