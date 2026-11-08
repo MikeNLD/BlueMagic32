@@ -421,10 +421,10 @@ BlueMagicCameraController *BlueMagicCameraConnection::connect(uint8_t index)
     return _cameraControl;
   }
 
-  bool ok;
+  bool ok = false;
   bool scanned = scan(false, 5);
 
-  BLEAddress address = BLEAddress("FF:FF:FF:FF:FF");
+  BLEAddress address;
 
   if (scanned)
   {
