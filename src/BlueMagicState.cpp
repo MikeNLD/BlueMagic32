@@ -16,15 +16,26 @@ BlueMagicState::BlueMagicState()
 {
 }
 
-void BlueMagicState::storeData(uint8_t *target, size_t *targetLength, bool *changedFlag, bool changed, uint8_t *data, size_t length)
+void BlueMagicState::storeData(uint8_t *target, size_t *targetLength, volatile bool *changedFlag, bool changed, uint8_t *data, size_t length)
 {
     if (length > BLUEMAGIC_MAX_DATA_LENGTH)
     {
         length = BLUEMAGIC_MAX_DATA_LENGTH;
     }
+    portENTER_CRITICAL(&_mux);
     memcpy(target, data, length);
     *targetLength = length;
     *changedFlag = changed;
+    portEXIT_CRITICAL(&_mux);
+}
+
+bool BlueMagicState::takeFlag(volatile bool *flag)
+{
+    portENTER_CRITICAL(&_mux);
+    bool value = *flag;
+    *flag = false;
+    portEXIT_CRITICAL(&_mux);
+    return value;
 }
 
 void BlueMagicState::setChanged(bool changed)
@@ -34,9 +45,7 @@ void BlueMagicState::setChanged(bool changed)
 
 bool BlueMagicState::changed()
 {
-    bool changed = _changed;
-    _changed = false;
-    return changed;
+    return takeFlag(&_changed);
 }
 
 void BlueMagicState::settingsNotify(bool changed, uint8_t *data, size_t length)
@@ -46,9 +55,7 @@ void BlueMagicState::settingsNotify(bool changed, uint8_t *data, size_t length)
 
 bool BlueMagicState::settingsChanged()
 {
-    bool changed = _settingsChanged;
-    _settingsChanged = false;
-    return changed;
+    return takeFlag(&_settingsChanged);
 }
 
 uint8_t *BlueMagicState::settingsData()
@@ -68,9 +75,7 @@ void BlueMagicState::timecodeNotify(bool changed, uint8_t *data, size_t length)
 
 bool BlueMagicState::timecodeChanged()
 {
-    bool changed = _timecodeChanged;
-    _timecodeChanged = false;
-    return changed;
+    return takeFlag(&_timecodeChanged);
 }
 
 uint8_t *BlueMagicState::timecodeData()
@@ -90,9 +95,7 @@ void BlueMagicState::statusNotify(bool changed, uint8_t *data, size_t length)
 
 bool BlueMagicState::statusChanged()
 {
-    bool changed = _statusChanged;
-    _statusChanged = false;
-    return changed;
+    return takeFlag(&_statusChanged);
 }
 
 uint8_t *BlueMagicState::statusData()
@@ -117,17 +120,22 @@ uint8_t BlueMagicState::getCameraStatus()
 
 void BlueMagicState::setTimecode(uint8_t H, uint8_t M, uint8_t S, uint8_t f)
 {
-    char timecode[12] = "00:00:00:00";
-    char timecodeR[10] = "00000000";
-    sprintf(timecode, "%02d:%02d:%02d:%02d", H, M, S, f);
-    sprintf(timecodeR, "%02d%02d%02d%02d", H, M, S, f);
-    _timecode = String(timecode);
-    _timecodeRaw = String(timecodeR).toInt();
+    char timecode[12];
+    snprintf(timecode, sizeof(timecode), "%02d:%02d:%02d:%02d", H, M, S, f);
+    uint32_t timecodeRaw = H * 1000000UL + M * 10000UL + S * 100UL + f;
+    portENTER_CRITICAL(&_mux);
+    memcpy(_timecode, timecode, sizeof(_timecode));
+    _timecodeRaw = timecodeRaw;
+    portEXIT_CRITICAL(&_mux);
 }
 
 String BlueMagicState::getTimecode()
 {
-    return _timecode;
+    char timecode[12];
+    portENTER_CRITICAL(&_mux);
+    memcpy(timecode, _timecode, sizeof(timecode));
+    portEXIT_CRITICAL(&_mux);
+    return String(timecode);
 }
 
 uint32_t BlueMagicState::getTimecodeRaw()

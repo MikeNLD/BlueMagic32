@@ -10,8 +10,8 @@ class BlueMagicState
 private:
     static BlueMagicState *instance;
     BlueMagicState();
-    String _timecode;
-    uint32_t _timecodeRaw;
+    char _timecode[12] = "00:00:00:00";
+    volatile uint32_t _timecodeRaw = 0;
 
     // bool _recording = false;
     int8_t _transportMode = 0;
@@ -35,7 +35,7 @@ private:
     int16_t _tint = 0;
     int16_t _whiteBalance = 0;
 
-    bool _changed = false;
+    volatile bool _changed = false;
 
     uint8_t _settingsData[BLUEMAGIC_MAX_DATA_LENGTH] = {0};
     uint8_t _timecodeData[BLUEMAGIC_MAX_DATA_LENGTH] = {0};
@@ -45,11 +45,14 @@ private:
     size_t _timecodeLength = 0;
     size_t _statusLength = 0;
 
-    bool _settingsChanged = false;
-    bool _timecodeChanged = false;
-    bool _statusChanged = false;
+    volatile bool _settingsChanged = false;
+    volatile bool _timecodeChanged = false;
+    volatile bool _statusChanged = false;
 
-    void storeData(uint8_t *target, size_t *targetLength, bool *changedFlag, bool changed, uint8_t *data, size_t length);
+    portMUX_TYPE _mux = portMUX_INITIALIZER_UNLOCKED;
+
+    void storeData(uint8_t *target, size_t *targetLength, volatile bool *changedFlag, bool changed, uint8_t *data, size_t length);
+    bool takeFlag(volatile bool *flag);
 
 public:
     static BlueMagicState *getInstance();
