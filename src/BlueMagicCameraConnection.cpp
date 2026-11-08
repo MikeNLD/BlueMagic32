@@ -225,7 +225,6 @@ BlueMagicCameraConnection::BlueMagicCameraConnection()
 
 BlueMagicCameraConnection::~BlueMagicCameraConnection()
 {
-  delete _cameraStatus, _deviceName, _timecode, _outgoingCameraControl, _incomingCameraControl, _device;
   delete _client;
   delete _cameraControl;
   _init = false;
