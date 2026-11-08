@@ -56,7 +56,8 @@ private:
   BLEDevice _device;
   BLEClient *_client;
 
-  BLEAddress *_cameraAddress = nullptr;
+  BLEAddress _cameraAddress;
+  bool _hasCameraAddress = false;
 
   static BLERemoteCharacteristic *_outgoingCameraControl;
   static BLERemoteCharacteristic *_incomingCameraControl;

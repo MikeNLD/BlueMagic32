@@ -375,12 +375,13 @@ bool BlueMagicCameraConnection::getAuthentication()
 
 void BlueMagicCameraConnection::setCameraAddress(BLEAddress address)
 {
-  _cameraAddress = &address;
+  _cameraAddress = address;
+  _hasCameraAddress = true;
 }
 
 BLEAddress *BlueMagicCameraConnection::getCameraAddress()
 {
-  return _cameraAddress;
+  return _hasCameraAddress ? &_cameraAddress : nullptr;
 }
 
 BlueMagicCameraController *BlueMagicCameraConnection::connect()
@@ -445,7 +446,7 @@ void BlueMagicCameraConnection::clearPairing()
     disconnect();
   }
 #if defined(CONFIG_BLUEDROID_ENABLED)
-  if (getCameraAddress()->getNative() != nullptr)
+  if (getCameraAddress() != nullptr)
   {
     esp_ble_remove_bond_device(getCameraAddress()->getNative());
   }
@@ -466,7 +467,7 @@ void BlueMagicCameraConnection::clearPairing()
   ble_store_clear();
 #endif
   setAuthentication(false);
-  // setCameraAddress(nullptr);
+  _hasCameraAddress = false;
   _pref->begin(_name.c_str(), false);
   _pref->putString("cameraAddress", "");
   _pref->putBool("authenticated", getAuthentication());
