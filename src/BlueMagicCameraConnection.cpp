@@ -179,6 +179,22 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
   }
 };
 
+class BlueMagicClientCallbacks : public BLEClientCallbacks
+{
+public:
+  BlueMagicClientCallbacks(BlueMagicCameraConnection *connection) : _connection(connection) {}
+
+  void onConnect(BLEClient *client) {}
+
+  void onDisconnect(BLEClient *client)
+  {
+    _connection->onCameraDisconnected();
+  }
+
+private:
+  BlueMagicCameraConnection *_connection;
+};
+
 class MySecurity : public BLESecurityCallbacks
 {
   uint32_t onPassKeyRequest()
@@ -226,6 +242,7 @@ BlueMagicCameraConnection::BlueMagicCameraConnection()
 BlueMagicCameraConnection::~BlueMagicCameraConnection()
 {
   delete _client;
+  delete _clientCallbacks;
   delete _cameraControl;
   _init = false;
   BLEDevice::deinit(true);
@@ -310,15 +327,35 @@ int BlueMagicCameraConnection::connected()
 
 bool BlueMagicCameraConnection::available()
 {
-  return connected() && (_cameraControl != nullptr);
+  return connected() == CAMERA_CONNECTED && (_cameraControl != nullptr);
+}
+
+void BlueMagicCameraConnection::onCameraDisconnected()
+{
+  setState(CAMERA_DISCONNECTED);
+  _outgoingCameraControl = nullptr;
+  _incomingCameraControl = nullptr;
+  _timecode = nullptr;
+  _cameraStatus = nullptr;
+  _deviceName = nullptr;
+  if (_cameraControl != nullptr)
+  {
+    _cameraControl->_cameraControl = nullptr;
+  }
 }
 
 bool BlueMagicCameraConnection::connectToServer(BLEAddress address)
 {
-  if (_client == nullptr)
+  if (_client != nullptr)
   {
-    _client = BLEDevice::createClient();
+    delete _client;
   }
+  if (_clientCallbacks == nullptr)
+  {
+    _clientCallbacks = new BlueMagicClientCallbacks(this);
+  }
+  _client = BLEDevice::createClient();
+  _client->setClientCallbacks(_clientCallbacks);
   setState(CAMERA_CONNECTING);
   if (!_client->connect(address))
   {
@@ -393,7 +430,14 @@ bool BlueMagicCameraConnection::connectToServer(BLEAddress address)
 
 void BlueMagicCameraConnection::setController()
 {
-  _cameraControl = new BlueMagicCameraController(_outgoingCameraControl);
+  if (_cameraControl == nullptr)
+  {
+    _cameraControl = new BlueMagicCameraController(_outgoingCameraControl);
+  }
+  else
+  {
+    _cameraControl->_cameraControl = _outgoingCameraControl;
+  }
 }
 
 void BlueMagicCameraConnection::setState(CONNECTION_STATE state)
@@ -429,7 +473,7 @@ BlueMagicCameraController *BlueMagicCameraConnection::connect()
 
 BlueMagicCameraController *BlueMagicCameraConnection::connect(uint8_t index)
 {
-  if (_cameraControl != nullptr)
+  if (available())
   {
     return _cameraControl;
   }
@@ -469,13 +513,11 @@ BlueMagicCameraController *BlueMagicCameraConnection::connect(uint8_t index)
 
 void BlueMagicCameraConnection::disconnect()
 {
-  if (_client != nullptr)
+  if (_client != nullptr && _client->isConnected())
   {
     _client->disconnect();
   }
-  delete _cameraControl;
-  _cameraControl = nullptr;
-  setState(CAMERA_DISCONNECTED);
+  onCameraDisconnected();
 }
 
 void BlueMagicCameraConnection::clearPairing()

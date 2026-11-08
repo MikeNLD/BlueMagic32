@@ -20,6 +20,8 @@ enum CONNECTION_STATE
   CAMERA_CONNECTING = 3
 };
 
+class BlueMagicClientCallbacks;
+
 class BlueMagicCameraConnection
 {
 
@@ -43,14 +45,17 @@ public:
   bool available();
 
 private:
+  friend class BlueMagicClientCallbacks;
+
   String _name;
   Preferences *_pref = nullptr;
   bool _init = false;
 
-  bool _authenticated;
-  int _connected;
+  bool _authenticated = false;
+  volatile int _connected = CAMERA_DISCONNECTED;
 
   BLEClient *_client = nullptr;
+  BlueMagicClientCallbacks *_clientCallbacks = nullptr;
 
   BLEAddress _cameraAddress;
   bool _hasCameraAddress = false;
@@ -66,6 +71,7 @@ private:
   BlueMagicCameraController *_cameraControl = nullptr;
 
   bool connectToServer(BLEAddress address);
+  void onCameraDisconnected();
 
   int connected();
   bool authenticated();
