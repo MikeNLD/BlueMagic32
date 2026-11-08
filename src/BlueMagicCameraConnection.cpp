@@ -464,7 +464,10 @@ BlueMagicCameraController *BlueMagicCameraConnection::connect(uint8_t index)
 
 void BlueMagicCameraConnection::disconnect()
 {
-  _client->disconnect();
+  if (_client != nullptr)
+  {
+    _client->disconnect();
+  }
   delete _cameraControl;
   _cameraControl = nullptr;
   setState(CAMERA_DISCONNECTED);
