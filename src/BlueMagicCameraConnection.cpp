@@ -228,7 +228,7 @@ BlueMagicCameraConnection::~BlueMagicCameraConnection()
   delete _client;
   delete _cameraControl;
   _init = false;
-  _device.deinit(true);
+  BLEDevice::deinit(true);
 }
 
 void BlueMagicCameraConnection::begin()
@@ -269,12 +269,12 @@ void BlueMagicCameraConnection::begin(String name)
 
   _pref->end();
 
-  _device.init(_name.c_str());
-  _device.setPower(ESP_PWR_LVL_P9);
+  BLEDevice::init(_name);
+  BLEDevice::setPower(ESP_PWR_LVL_P9);
 #if defined(CONFIG_BLUEDROID_ENABLED)
   BLESecurity::setEncryptionLevel(ESP_BLE_SEC_ENCRYPT);
 #endif
-  _device.setSecurityCallbacks(new MySecurity());
+  BLEDevice::setSecurityCallbacks(new MySecurity());
 
   BLESecurity *pSecurity = new BLESecurity();
   pSecurity->setAuthenticationMode(ESP_LE_AUTH_REQ_SC_BOND);
@@ -294,7 +294,7 @@ bool BlueMagicCameraConnection::scan(bool active, int duration)
   {
     cameraFound = false;
     candidateFound = false;
-    _bleScan = _device.getScan();
+    _bleScan = BLEDevice::getScan();
     _bleScan->clearResults();
     _bleScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
     _bleScan->setActiveScan(active);
@@ -317,7 +317,7 @@ bool BlueMagicCameraConnection::connectToServer(BLEAddress address)
 {
   if (_client == nullptr)
   {
-    _client = _device.createClient();
+    _client = BLEDevice::createClient();
   }
   setState(CAMERA_CONNECTING);
   if (!_client->connect(address))
