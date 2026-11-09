@@ -32,6 +32,7 @@ enum CONNECTION_STATE
 #endif
 
 #define BLUEMAGIC_CAMERA_NAME_LENGTH 32
+#define BLUEMAGIC_MAX_FOUND_CAMERAS 8
 
 struct BlueMagicCameraRecord
 {
@@ -57,6 +58,13 @@ public:
   void begin(String name, Preferences &pref);
 
   bool scan(bool active, int duration);
+
+  int scanForCameras(uint32_t seconds = 5);
+  uint8_t foundCameraCount();
+  String foundCameraName(uint8_t index);
+  String foundCameraAddress(uint8_t index);
+  int foundCameraRssi(uint8_t index);
+  bool foundCameraIsStored(uint8_t index);
 
   BlueMagicCameraController *connect();
   BlueMagicCameraController *connect(uint8_t index);
@@ -114,6 +122,7 @@ private:
   int lastUsedCamera();
   int addCamera(BLEAddress address, String name);
   void markUsed(uint8_t index);
+  void runScan(bool active, uint32_t seconds, bool stopAtFirstCamera);
 };
 
 #endif

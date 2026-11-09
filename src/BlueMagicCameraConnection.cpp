@@ -166,30 +166,87 @@ static void controlNotify(BLERemoteCharacteristic *pBLERemoteCharacteristic, uin
   blu->setChanged(changed);
 }
 
-static BLEAddress foundCameraAddress;
-static bool cameraFound = false;
-static bool candidateFound = false;
+struct FoundCamera
+{
+  BLEAddress address;
+  char name[BLUEMAGIC_CAMERA_NAME_LENGTH + 1];
+  int rssi;
+  bool blackmagicService;
+};
+
+static FoundCamera foundCameras[BLUEMAGIC_MAX_FOUND_CAMERAS];
+static uint8_t foundCount = 0;
+static bool stopAtFirstCamera = false;
 static PinCodeCallback pinCodeCallback = nullptr;
 
 class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
 {
   void onResult(BLEAdvertisedDevice advertisedDevice)
   {
-    if (cameraFound || !advertisedDevice.haveServiceUUID())
+    BLEAddress address = advertisedDevice.getAddress();
+    for (uint8_t i = 0; i < foundCount; i++)
+    {
+      if (foundCameras[i].address == address)
+      {
+        update(foundCameras[i], advertisedDevice);
+        return;
+      }
+    }
+
+    if (!advertisedDevice.haveServiceUUID())
     {
       return;
     }
 
-    if (advertisedDevice.isAdvertisingService(BmdCameraService))
+    bool blackmagic = advertisedDevice.isAdvertisingService(BmdCameraService);
+    if (!blackmagic && !advertisedDevice.isAdvertisingService(ServiceId))
     {
-      foundCameraAddress = advertisedDevice.getAddress();
-      cameraFound = true;
+      return;
+    }
+
+    int slot = -1;
+    if (foundCount < BLUEMAGIC_MAX_FOUND_CAMERAS)
+    {
+      slot = foundCount++;
+    }
+    else if (blackmagic)
+    {
+      for (uint8_t i = 0; i < foundCount && slot < 0; i++)
+      {
+        if (!foundCameras[i].blackmagicService)
+        {
+          slot = i;
+        }
+      }
+    }
+    if (slot < 0)
+    {
+      return;
+    }
+
+    FoundCamera &camera = foundCameras[slot];
+    camera.address = address;
+    camera.name[0] = '\0';
+    camera.rssi = -127;
+    camera.blackmagicService = blackmagic;
+    update(camera, advertisedDevice);
+
+    if (blackmagic && stopAtFirstCamera)
+    {
       advertisedDevice.getScan()->stop();
     }
-    else if (!candidateFound && advertisedDevice.isAdvertisingService(ServiceId))
+  }
+
+  void update(FoundCamera &camera, BLEAdvertisedDevice &advertisedDevice)
+  {
+    if (advertisedDevice.haveRSSI())
     {
-      foundCameraAddress = advertisedDevice.getAddress();
-      candidateFound = true;
+      camera.rssi = advertisedDevice.getRSSI();
+    }
+    if (advertisedDevice.haveName() && advertisedDevice.getName().length() > 0)
+    {
+      strncpy(camera.name, advertisedDevice.getName().c_str(), BLUEMAGIC_CAMERA_NAME_LENGTH);
+      camera.name[BLUEMAGIC_CAMERA_NAME_LENGTH] = '\0';
     }
   }
 };
@@ -326,18 +383,89 @@ bool BlueMagicCameraConnection::scan(bool active, int duration)
   {
     return false;
   }
-  else
-  {
-    cameraFound = false;
-    candidateFound = false;
-    _bleScan = BLEDevice::getScan();
-    _bleScan->clearResults();
-    _bleScan->setAdvertisedDeviceCallbacks(&advertisedDeviceCallbacks);
-    _bleScan->setActiveScan(active);
-    _bleScan->start(duration);
-    _bleScan->clearResults();
-  }
+  runScan(active, duration, true);
   return true;
+}
+
+int BlueMagicCameraConnection::scanForCameras(uint32_t seconds)
+{
+  runScan(true, seconds, false);
+  return foundCount;
+}
+
+void BlueMagicCameraConnection::runScan(bool active, uint32_t seconds, bool stopAtFirst)
+{
+  foundCount = 0;
+  stopAtFirstCamera = stopAtFirst;
+  _bleScan = BLEDevice::getScan();
+  _bleScan->clearResults();
+  _bleScan->setAdvertisedDeviceCallbacks(&advertisedDeviceCallbacks);
+  _bleScan->setActiveScan(active);
+  _bleScan->start(seconds);
+  _bleScan->clearResults();
+
+  bool anyBlackmagic = false;
+  for (uint8_t i = 0; i < foundCount; i++)
+  {
+    anyBlackmagic |= foundCameras[i].blackmagicService;
+  }
+  if (anyBlackmagic)
+  {
+    uint8_t kept = 0;
+    for (uint8_t i = 0; i < foundCount; i++)
+    {
+      if (foundCameras[i].blackmagicService)
+      {
+        foundCameras[kept++] = foundCameras[i];
+      }
+    }
+    foundCount = kept;
+  }
+
+  for (uint8_t i = 1; i < foundCount; i++)
+  {
+    FoundCamera camera = foundCameras[i];
+    int j = i - 1;
+    while (j >= 0 && foundCameras[j].rssi < camera.rssi)
+    {
+      foundCameras[j + 1] = foundCameras[j];
+      j--;
+    }
+    foundCameras[j + 1] = camera;
+  }
+}
+
+uint8_t BlueMagicCameraConnection::foundCameraCount()
+{
+  return foundCount;
+}
+
+String BlueMagicCameraConnection::foundCameraName(uint8_t index)
+{
+  if (index >= foundCount)
+  {
+    return "";
+  }
+  if (foundCameras[index].name[0] != '\0')
+  {
+    return String(foundCameras[index].name);
+  }
+  return foundCameras[index].address.toString();
+}
+
+String BlueMagicCameraConnection::foundCameraAddress(uint8_t index)
+{
+  return index < foundCount ? foundCameras[index].address.toString() : String("");
+}
+
+int BlueMagicCameraConnection::foundCameraRssi(uint8_t index)
+{
+  return index < foundCount ? foundCameras[index].rssi : 0;
+}
+
+bool BlueMagicCameraConnection::foundCameraIsStored(uint8_t index)
+{
+  return index < foundCount && findCamera(foundCameras[index].address) >= 0;
 }
 
 int BlueMagicCameraConnection::connected()
@@ -595,9 +723,9 @@ BlueMagicCameraController *BlueMagicCameraConnection::connect(uint8_t index)
   if (_cameraCount == 0)
   {
     scan(false, 5);
-    if ((cameraFound || candidateFound) && connectToServer(foundCameraAddress))
+    if (foundCount > 0 && connectToServer(foundCameras[0].address))
     {
-      _connectedIndex = addCamera(foundCameraAddress, "");
+      _connectedIndex = addCamera(foundCameras[0].address, foundCameras[0].name);
       return _cameraControl;
     }
     return nullptr;
