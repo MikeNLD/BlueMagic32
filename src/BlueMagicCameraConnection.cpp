@@ -262,7 +262,10 @@ public:
 
   void onDisconnect(BLEClient *client)
   {
-    _connection->onCameraDisconnected();
+    if (client == _connection->_client)
+    {
+      _connection->onCameraDisconnected();
+    }
   }
 
 private:
@@ -476,6 +479,11 @@ int BlueMagicCameraConnection::connected()
 bool BlueMagicCameraConnection::available()
 {
   return connected() == CAMERA_CONNECTED && (_cameraControl != nullptr);
+}
+
+int BlueMagicCameraConnection::connectedIndex()
+{
+  return available() ? _connectedIndex : -1;
 }
 
 void BlueMagicCameraConnection::setPinCodeCallback(PinCodeCallback callback)
@@ -710,11 +718,6 @@ void BlueMagicCameraConnection::markUsed(uint8_t index)
 
 BlueMagicCameraController *BlueMagicCameraConnection::connect()
 {
-  return connect(0);
-}
-
-BlueMagicCameraController *BlueMagicCameraConnection::connect(uint8_t index)
-{
   if (available())
   {
     return _cameraControl;
@@ -726,7 +729,39 @@ BlueMagicCameraController *BlueMagicCameraConnection::connect(uint8_t index)
     return foundCount > 0 ? pair(0) : nullptr;
   }
 
-  return connectToCamera(lastUsedCamera()) ? _cameraControl : nullptr;
+  int last = lastUsedCamera();
+  if (connectToCamera(last))
+  {
+    return _cameraControl;
+  }
+
+  if (_cameraCount > 1)
+  {
+    runScan(false, 3, false);
+    for (uint8_t i = 0; i < foundCount; i++)
+    {
+      int stored = findCamera(foundCameras[i].address);
+      if (stored >= 0 && stored != last && connectToCamera(stored))
+      {
+        return _cameraControl;
+      }
+    }
+  }
+
+  return nullptr;
+}
+
+BlueMagicCameraController *BlueMagicCameraConnection::connect(uint8_t index)
+{
+  if (index >= _cameraCount)
+  {
+    return nullptr;
+  }
+  if (available() && _connectedIndex == index)
+  {
+    return _cameraControl;
+  }
+  return connectToCamera(index) ? _cameraControl : nullptr;
 }
 
 void BlueMagicCameraConnection::disconnect()
@@ -734,6 +769,11 @@ void BlueMagicCameraConnection::disconnect()
   if (_client != nullptr && _client->isConnected())
   {
     _client->disconnect();
+    unsigned long start = millis();
+    while (_client->isConnected() && millis() - start < 2000)
+    {
+      delay(10);
+    }
   }
   onCameraDisconnected();
 }
@@ -765,6 +805,7 @@ BlueMagicCameraController *BlueMagicCameraConnection::pair(uint8_t foundIndex)
     forgetCamera(oldest);
   }
 
+  BlueMagicState::getInstance()->reset();
   if (!connectToServer(camera.address))
   {
     return nullptr;
@@ -781,7 +822,16 @@ BlueMagicCameraController *BlueMagicCameraConnection::pair(uint8_t foundIndex)
 
 bool BlueMagicCameraConnection::connectToCamera(uint8_t index)
 {
-  if (index >= _cameraCount || !connectToServer(cameraBLEAddress(index)))
+  if (index >= _cameraCount)
+  {
+    return false;
+  }
+  if (connected() != CAMERA_DISCONNECTED)
+  {
+    disconnect();
+  }
+  BlueMagicState::getInstance()->reset();
+  if (!connectToServer(cameraBLEAddress(index)))
   {
     return false;
   }

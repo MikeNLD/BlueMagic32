@@ -82,6 +82,7 @@ public:
   void forgetCamera(uint8_t index);
 
   bool available();
+  int connectedIndex();
 
   void setPinCodeCallback(PinCodeCallback callback);
 

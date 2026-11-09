@@ -16,6 +16,37 @@ BlueMagicState::BlueMagicState()
 {
 }
 
+void BlueMagicState::reset()
+{
+    portENTER_CRITICAL(&_mux);
+    memcpy(_timecode, "00:00:00:00", sizeof(_timecode));
+    _timecodeRaw = 0;
+    _transportMode = 0;
+    _status = 0;
+    _aperture = 0;
+    _focus = 0;
+    _zoom = 0;
+    _iso = 0;
+    _shutter = 0;
+    _codec = 0;
+    _quality = 0;
+    _frameRate = 0;
+    _sensorFrameRate = 0;
+    _frameWidth = 0;
+    _frameHeight = 0;
+    _flags = 0;
+    _tint = 0;
+    _whiteBalance = 0;
+    _settingsLength = 0;
+    _timecodeLength = 0;
+    _statusLength = 0;
+    _changed = false;
+    _settingsChanged = false;
+    _timecodeChanged = false;
+    _statusChanged = false;
+    portEXIT_CRITICAL(&_mux);
+}
+
 void BlueMagicState::storeData(uint8_t *target, size_t *targetLength, volatile bool *changedFlag, bool changed, uint8_t *data, size_t length)
 {
     if (length > BLUEMAGIC_MAX_DATA_LENGTH)

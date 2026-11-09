@@ -57,6 +57,8 @@ private:
 public:
     static BlueMagicState *getInstance();
 
+    void reset();
+
     void setChanged(bool changed);
     bool changed();
 
