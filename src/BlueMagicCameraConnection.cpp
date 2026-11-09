@@ -491,6 +491,11 @@ void BlueMagicCameraConnection::setPinCodeCallback(PinCodeCallback callback)
   pinCodeCallback = callback;
 }
 
+void BlueMagicCameraConnection::setConnectTimeout(uint32_t milliseconds)
+{
+  _connectTimeout = milliseconds;
+}
+
 void BlueMagicCameraConnection::onCameraDisconnected()
 {
   setState(CAMERA_DISCONNECTED);
@@ -519,7 +524,7 @@ bool BlueMagicCameraConnection::connectToServer(BLEAddress address)
   _client = BLEDevice::createClient();
   _client->setClientCallbacks(_clientCallbacks);
   setState(CAMERA_CONNECTING);
-  if (!_client->connect(address))
+  if (!_client->connect(address, 0xFF, _connectTimeout))
   {
     Serial.println("Failed to connect to camera");
     setState(CAMERA_DISCONNECTED);

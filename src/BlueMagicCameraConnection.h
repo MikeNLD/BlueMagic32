@@ -85,6 +85,7 @@ public:
   int connectedIndex();
 
   void setPinCodeCallback(PinCodeCallback callback);
+  void setConnectTimeout(uint32_t milliseconds);
 
 private:
   friend class BlueMagicClientCallbacks;
@@ -103,6 +104,7 @@ private:
   uint8_t _cameraCount = 0;
   uint32_t _useCounter = 0;
   int _connectedIndex = -1;
+  uint32_t _connectTimeout = 10000;
 
   static BLERemoteCharacteristic *_outgoingCameraControl;
   static BLERemoteCharacteristic *_incomingCameraControl;
