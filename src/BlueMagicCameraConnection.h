@@ -43,6 +43,7 @@ struct BlueMagicCameraRecord
 };
 
 typedef std::function<uint32_t()> PinCodeCallback;
+typedef std::function<uint32_t(const String &cameraName, const String &cameraAddress)> CameraPinCodeCallback;
 
 class BlueMagicClientCallbacks;
 
@@ -85,6 +86,7 @@ public:
   int connectedIndex();
 
   void setPinCodeCallback(PinCodeCallback callback);
+  void setPinCodeCallback(CameraPinCodeCallback callback);
   void setConnectTimeout(uint32_t milliseconds);
   void setMaxAuthFailures(uint8_t failures);
 

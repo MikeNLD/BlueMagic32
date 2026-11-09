@@ -178,6 +178,9 @@ static FoundCamera foundCameras[BLUEMAGIC_MAX_FOUND_CAMERAS];
 static uint8_t foundCount = 0;
 static bool stopAtFirstCamera = false;
 static PinCodeCallback pinCodeCallback = nullptr;
+static CameraPinCodeCallback cameraPinCodeCallback = nullptr;
+static String pendingCameraName;
+static String pendingCameraAddress;
 static BlueMagicCameraConnection *activeConnection = nullptr;
 
 class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
@@ -277,6 +280,10 @@ class MySecurity : public BLESecurityCallbacks
 {
   uint32_t onPassKeyRequest()
   {
+    if (cameraPinCodeCallback)
+    {
+      return cameraPinCodeCallback(pendingCameraName, pendingCameraAddress);
+    }
     if (pinCodeCallback)
     {
       return pinCodeCallback();
@@ -511,6 +518,13 @@ int BlueMagicCameraConnection::connectedIndex()
 void BlueMagicCameraConnection::setPinCodeCallback(PinCodeCallback callback)
 {
   pinCodeCallback = callback;
+  cameraPinCodeCallback = nullptr;
+}
+
+void BlueMagicCameraConnection::setPinCodeCallback(CameraPinCodeCallback callback)
+{
+  cameraPinCodeCallback = callback;
+  pinCodeCallback = nullptr;
 }
 
 void BlueMagicCameraConnection::setConnectTimeout(uint32_t milliseconds)
@@ -859,6 +873,8 @@ BlueMagicCameraController *BlueMagicCameraConnection::pair(uint8_t foundIndex)
 
   BlueMagicState::getInstance()->reset();
   _pendingIndex = -1;
+  pendingCameraName = camera.name[0] != '\0' ? String(camera.name) : camera.address.toString();
+  pendingCameraAddress = camera.address.toString();
   if (!connectToServer(camera.address))
   {
     return nullptr;
@@ -897,6 +913,8 @@ bool BlueMagicCameraConnection::connectToCamera(uint8_t index)
   }
   BlueMagicState::getInstance()->reset();
   _pendingIndex = index;
+  pendingCameraName = cameraName(index);
+  pendingCameraAddress = cameraAddress(index);
   if (!connectToServer(cameraBLEAddress(index)))
   {
     return false;
