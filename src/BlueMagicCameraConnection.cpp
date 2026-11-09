@@ -723,23 +723,10 @@ BlueMagicCameraController *BlueMagicCameraConnection::connect(uint8_t index)
   if (_cameraCount == 0)
   {
     scan(false, 5);
-    if (foundCount > 0 && connectToServer(foundCameras[0].address))
-    {
-      _connectedIndex = addCamera(foundCameras[0].address, foundCameras[0].name);
-      return _cameraControl;
-    }
-    return nullptr;
+    return foundCount > 0 ? pair(0) : nullptr;
   }
 
-  int last = lastUsedCamera();
-  if (connectToServer(cameraBLEAddress(last)))
-  {
-    _connectedIndex = last;
-    markUsed(last);
-    return _cameraControl;
-  }
-
-  return nullptr;
+  return connectToCamera(lastUsedCamera()) ? _cameraControl : nullptr;
 }
 
 void BlueMagicCameraConnection::disconnect()
@@ -749,6 +736,92 @@ void BlueMagicCameraConnection::disconnect()
     _client->disconnect();
   }
   onCameraDisconnected();
+}
+
+BlueMagicCameraController *BlueMagicCameraConnection::pair(uint8_t foundIndex)
+{
+  if (foundIndex >= foundCount)
+  {
+    return nullptr;
+  }
+  FoundCamera camera = foundCameras[foundIndex];
+
+  int stored = findCamera(camera.address);
+  if (stored >= 0)
+  {
+    return connectToCamera(stored) ? _cameraControl : nullptr;
+  }
+
+  if (connected() != CAMERA_DISCONNECTED)
+  {
+    disconnect();
+  }
+
+  if (_cameraCount >= BLUEMAGIC_MAX_CAMERAS)
+  {
+    int oldest = leastRecentlyUsedCamera();
+    Serial.print("Camera list full, forgetting: ");
+    Serial.println(cameraName(oldest));
+    forgetCamera(oldest);
+  }
+
+  if (!connectToServer(camera.address))
+  {
+    return nullptr;
+  }
+
+  String name = String(camera.name);
+  if (name.length() == 0)
+  {
+    name = readCameraName();
+  }
+  _connectedIndex = addCamera(camera.address, name);
+  return _cameraControl;
+}
+
+bool BlueMagicCameraConnection::connectToCamera(uint8_t index)
+{
+  if (index >= _cameraCount || !connectToServer(cameraBLEAddress(index)))
+  {
+    return false;
+  }
+  _connectedIndex = index;
+  markUsed(index);
+  return true;
+}
+
+String BlueMagicCameraConnection::readCameraName()
+{
+  if (_client == nullptr || !_client->isConnected())
+  {
+    return "";
+  }
+  BLERemoteService *service = _client->getService(BLEUUID((uint16_t)0x1800));
+  if (service == nullptr)
+  {
+    return "";
+  }
+  BLERemoteCharacteristic *characteristic = service->getCharacteristic(BLEUUID((uint16_t)0x2A00));
+  if (characteristic == nullptr || !characteristic->canRead())
+  {
+    return "";
+  }
+  String name = characteristic->readValue();
+  name.trim();
+  return name;
+}
+
+int BlueMagicCameraConnection::leastRecentlyUsedCamera()
+{
+  int result = -1;
+  for (uint8_t i = 0; i < _cameraCount; i++)
+  {
+    if (i != _connectedIndex && (result < 0 || _cameras[i].lastUsed < _cameras[result].lastUsed))
+    {
+      result = i;
+    }
+  }
+  return result < 0 ? 0 : result;
 }
 
 uint8_t BlueMagicCameraConnection::cameraCount()

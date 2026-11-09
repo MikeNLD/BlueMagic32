@@ -66,6 +66,8 @@ public:
   int foundCameraRssi(uint8_t index);
   bool foundCameraIsStored(uint8_t index);
 
+  BlueMagicCameraController *pair(uint8_t foundIndex);
+
   BlueMagicCameraController *connect();
   BlueMagicCameraController *connect(uint8_t index);
 
@@ -129,6 +131,9 @@ private:
   int addCamera(BLEAddress address, String name);
   void markUsed(uint8_t index);
   void removeBond(uint8_t index);
+  int leastRecentlyUsedCamera();
+  bool connectToCamera(uint8_t index);
+  String readCameraName();
   void runScan(bool active, uint32_t seconds, bool stopAtFirstCamera);
 };
 
