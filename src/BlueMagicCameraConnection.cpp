@@ -751,6 +751,78 @@ void BlueMagicCameraConnection::disconnect()
   onCameraDisconnected();
 }
 
+uint8_t BlueMagicCameraConnection::cameraCount()
+{
+  return _cameraCount;
+}
+
+String BlueMagicCameraConnection::cameraName(uint8_t index)
+{
+  if (index >= _cameraCount)
+  {
+    return "";
+  }
+  if (_cameras[index].name[0] != '\0')
+  {
+    return String(_cameras[index].name);
+  }
+  return String(_cameras[index].address);
+}
+
+String BlueMagicCameraConnection::cameraAddress(uint8_t index)
+{
+  return index < _cameraCount ? String(_cameras[index].address) : String("");
+}
+
+bool BlueMagicCameraConnection::renameCamera(uint8_t index, String name)
+{
+  if (index >= _cameraCount)
+  {
+    return false;
+  }
+  memset(_cameras[index].name, 0, sizeof(_cameras[index].name));
+  strncpy(_cameras[index].name, name.c_str(), BLUEMAGIC_CAMERA_NAME_LENGTH);
+  saveCameras();
+  return true;
+}
+
+void BlueMagicCameraConnection::forgetCamera(uint8_t index)
+{
+  if (index >= _cameraCount)
+  {
+    return;
+  }
+  if (_connectedIndex == index)
+  {
+    disconnect();
+  }
+  removeBond(index);
+
+  for (uint8_t i = index; i + 1 < _cameraCount; i++)
+  {
+    _cameras[i] = _cameras[i + 1];
+  }
+  _cameraCount--;
+  if (_connectedIndex > index)
+  {
+    _connectedIndex--;
+  }
+  saveCameras();
+}
+
+void BlueMagicCameraConnection::removeBond(uint8_t index)
+{
+  BLEAddress address = cameraBLEAddress(index);
+#if defined(CONFIG_BLUEDROID_ENABLED)
+  esp_ble_remove_bond_device(address.getNative());
+#else
+  ble_addr_t peer;
+  peer.type = _cameras[index].addressType;
+  memcpy(peer.val, address.getNative(), sizeof(peer.val));
+  ble_store_util_delete_peer(&peer);
+#endif
+}
+
 void BlueMagicCameraConnection::clearPairing()
 {
   if (connected() != CAMERA_DISCONNECTED)

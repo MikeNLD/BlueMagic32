@@ -73,6 +73,12 @@ public:
 
   void clearPairing();
 
+  uint8_t cameraCount();
+  String cameraName(uint8_t index);
+  String cameraAddress(uint8_t index);
+  bool renameCamera(uint8_t index, String name);
+  void forgetCamera(uint8_t index);
+
   bool available();
 
   void setPinCodeCallback(PinCodeCallback callback);
@@ -122,6 +128,7 @@ private:
   int lastUsedCamera();
   int addCamera(BLEAddress address, String name);
   void markUsed(uint8_t index);
+  void removeBond(uint8_t index);
   void runScan(bool active, uint32_t seconds, bool stopAtFirstCamera);
 };
 
