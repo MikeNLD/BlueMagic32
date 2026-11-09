@@ -1,6 +1,6 @@
 # BlueMagic32
 
-![](https://img.shields.io/badge/Version-1.0.2-green.svg) ![](https://img.shields.io/badge/BlackmagicCameraControl-1.3-green.svg) ![](https://img.shields.io/badge/arduino--esp32-1.0.5-green.svg)
+![](https://img.shields.io/badge/Version-1.2.0-green.svg) ![](https://img.shields.io/badge/BlackmagicCameraControl-1.3-green.svg) ![](https://img.shields.io/badge/arduino--esp32-3.x-green.svg)
 
 Arduino ESP32 Library for connecting to Blackmagic Cameras using Bluetooth Low Energy.
 
@@ -36,7 +36,7 @@ Demonstration of how to install all the required software components and simple 
 
 ### Prerequisites
 
-You will need to install these software packages first. Get the latest version of the Arduino IDE ( version 1.8 or later ) and the ESP32 Arduino library ( version 1.0.4 or later ). Below are download links / guides on how to install them.
+You will need to install these software packages first. Get the latest version of the Arduino IDE ( version 1.8 or later ) and the ESP32 Arduino library ( version 3.0 or later ). Boards with Bluetooth Low Energy are supported: ESP32, ESP32-S3, ESP32-C3, ESP32-C5, ESP32-C6 and ESP32-H2. Below are download links / guides on how to install them.
 
 - [Arduino IDE](https://www.arduino.cc/en/main/software)
 
@@ -160,13 +160,36 @@ BMDControl->custom(data, 12);
 
 #### Connection Management
 
-When you wish to connect to another camera or need to rebond your ESP32 to the camera you need to:
+`connect()` pairs the strongest camera in range the first time and afterwards reconnects to the most recently used camera. If that camera is not reachable, the other stored cameras in range are tried.
 
-- Clear the existing bond on your ESP32 by calling this method:
-  ```
-  BMDConnection.clearPairing();
-  ```
-- Clear the paired devcies on your camera.
+#### Multiple Cameras
+
+Several cameras can be stored: 3 on ESP32-S3/C3/C5/C6/H2 and 8 on the original ESP32. When the list is full, pairing a new camera forgets the least recently used one.
+
+```
+int found = BMDConnection.scanForCameras(5);      // scan for 5 seconds
+for (int i = 0; i < found; i++) {
+    Serial.println(BMDConnection.foundCameraName(i));
+}
+BMDControl = BMDConnection.pair(0);                // pair and store found camera 0
+
+BMDControl = BMDConnection.connect(1);             // connect to stored camera 1
+BMDConnection.forgetCamera(1);                     // forget stored camera 1
+```
+
+The controller object stays the same when switching cameras.
+
+To show which camera asks for its PIN, for example on a display, set a callback before `begin()`:
+
+```
+BMDConnection.setPinCodeCallback([](const String &name, const String &address) -> uint32_t {
+    return readPinFromButtons(name);
+});
+```
+
+When a camera no longer knows the ESP32 (its pairing was removed on the camera), the ESP32 pairs again after 3 failed attempts. Change this with `setMaxAuthFailures(n)`; 0 disables it.
+
+To forget all cameras call `BMDConnection.clearPairing();` and clear the paired devices on your cameras.
 
 ## API Reference
 
@@ -176,15 +199,39 @@ When you wish to connect to another camera or need to rebond your ESP32 to the c
   void begin();
   void begin(String name);
 
+  void begin(String name, Preferences &pref);
+
   bool scan(bool active, int duration);
 
+  int scanForCameras(uint32_t seconds = 5);
+  uint8_t foundCameraCount();
+  String foundCameraName(uint8_t index);
+  String foundCameraAddress(uint8_t index);
+  int foundCameraRssi(uint8_t index);
+  bool foundCameraIsStored(uint8_t index);
+
+  BlueMagicCameraController *pair(uint8_t foundIndex);
+
   BlueMagicCameraController *connect();
+  BlueMagicCameraController *connect(uint8_t index);
 
   void disconnect();
 
   void clearPairing();
 
+  uint8_t cameraCount();
+  String cameraName(uint8_t index);
+  String cameraAddress(uint8_t index);
+  bool renameCamera(uint8_t index, String name);
+  void forgetCamera(uint8_t index);
+
   bool available();
+  int connectedIndex();
+
+  void setPinCodeCallback(PinCodeCallback callback);
+  void setPinCodeCallback(CameraPinCodeCallback callback);
+  void setConnectTimeout(uint32_t milliseconds);
+  void setMaxAuthFailures(uint8_t failures);
 ```
 
 #### Controller Methods
@@ -280,6 +327,10 @@ Open them, adjust yoru board settings and upload!
 Start/Stop recording using the built-in boot button.
 
 ![basic-trigger](docs/basic.jpg)
+
+### Multi Camera
+
+Scan, pair, switch between and forget cameras from the Serial Monitor.
 
 ### M5StickC Trigger with Timecode
 
