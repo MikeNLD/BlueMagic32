@@ -178,6 +178,7 @@ static FoundCamera foundCameras[BLUEMAGIC_MAX_FOUND_CAMERAS];
 static uint8_t foundCount = 0;
 static bool stopAtFirstCamera = false;
 static PinCodeCallback pinCodeCallback = nullptr;
+static BlueMagicCameraConnection *activeConnection = nullptr;
 
 class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
 {
@@ -315,6 +316,26 @@ class MySecurity : public BLESecurityCallbacks
   {
     return true;
   }
+
+#if defined(CONFIG_BLUEDROID_ENABLED)
+  void onAuthenticationComplete(esp_ble_auth_cmpl_t result)
+  {
+    if (activeConnection != nullptr)
+    {
+      bool keyMissing = !result.success && (result.fail_reason == ESP_AUTH_SMP_ENC_FAIL || result.fail_reason == 0x06);
+      activeConnection->onAuthenticationResult(result.success, result.fail_reason, keyMissing);
+    }
+  }
+#else
+  void onAuthenticationComplete(ble_gap_conn_desc *desc, int status)
+  {
+    if (activeConnection != nullptr)
+    {
+      bool keyMissing = status == BLE_HS_ERR_HCI_BASE + BLE_ERR_PINKEY_MISSING;
+      activeConnection->onAuthenticationResult(status == 0, status, keyMissing);
+    }
+  }
+#endif
 };
 
 BlueMagicCameraConnection::BlueMagicCameraConnection()
@@ -362,6 +383,7 @@ void BlueMagicCameraConnection::begin(String name)
     _ownsPref = true;
   }
 
+  activeConnection = this;
   loadCameras();
   migrateLegacyPairing();
 
@@ -494,6 +516,31 @@ void BlueMagicCameraConnection::setPinCodeCallback(PinCodeCallback callback)
 void BlueMagicCameraConnection::setConnectTimeout(uint32_t milliseconds)
 {
   _connectTimeout = milliseconds;
+}
+
+void BlueMagicCameraConnection::setMaxAuthFailures(uint8_t failures)
+{
+  _maxAuthFailures = failures;
+}
+
+void BlueMagicCameraConnection::onAuthenticationResult(bool success, int reason, bool keyMissing)
+{
+  int index = _pendingIndex;
+  if (index < 0 || index >= _cameraCount)
+  {
+    return;
+  }
+  if (success)
+  {
+    _authFailures[index] = 0;
+    return;
+  }
+  Serial.printf("Authentication with camera %d failed, reason %d (0x%x)%s\n", index, reason, reason,
+                keyMissing ? ", camera no longer knows this device" : "");
+  if (keyMissing && _authFailures[index] < 255)
+  {
+    _authFailures[index] = _authFailures[index] + 1;
+  }
 }
 
 void BlueMagicCameraConnection::onCameraDisconnected()
@@ -811,6 +858,7 @@ BlueMagicCameraController *BlueMagicCameraConnection::pair(uint8_t foundIndex)
   }
 
   BlueMagicState::getInstance()->reset();
+  _pendingIndex = -1;
   if (!connectToServer(camera.address))
   {
     return nullptr;
@@ -822,6 +870,11 @@ BlueMagicCameraController *BlueMagicCameraConnection::pair(uint8_t foundIndex)
     name = readCameraName();
   }
   _connectedIndex = addCamera(camera.address, name);
+  if (_connectedIndex >= 0)
+  {
+    _authFailures[_connectedIndex] = 0;
+  }
+  _pendingIndex = _connectedIndex;
   return _cameraControl;
 }
 
@@ -835,7 +888,15 @@ bool BlueMagicCameraConnection::connectToCamera(uint8_t index)
   {
     disconnect();
   }
+  if (_maxAuthFailures > 0 && _authFailures[index] >= _maxAuthFailures)
+  {
+    Serial.print("Pairing again with camera: ");
+    Serial.println(cameraName(index));
+    removeBond(index);
+    _authFailures[index] = 0;
+  }
   BlueMagicState::getInstance()->reset();
+  _pendingIndex = index;
   if (!connectToServer(cameraBLEAddress(index)))
   {
     return false;
@@ -929,8 +990,11 @@ void BlueMagicCameraConnection::forgetCamera(uint8_t index)
   for (uint8_t i = index; i + 1 < _cameraCount; i++)
   {
     _cameras[i] = _cameras[i + 1];
+    _authFailures[i] = _authFailures[i + 1];
   }
   _cameraCount--;
+  _authFailures[_cameraCount] = 0;
+  _pendingIndex = -1;
   if (_connectedIndex > index)
   {
     _connectedIndex--;
@@ -974,5 +1038,10 @@ void BlueMagicCameraConnection::clearPairing()
   ble_store_clear();
 #endif
   _cameraCount = 0;
+  for (uint8_t i = 0; i < BLUEMAGIC_MAX_CAMERAS; i++)
+  {
+    _authFailures[i] = 0;
+  }
+  _pendingIndex = -1;
   saveCameras();
 }

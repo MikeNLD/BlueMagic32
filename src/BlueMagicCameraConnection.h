@@ -86,9 +86,11 @@ public:
 
   void setPinCodeCallback(PinCodeCallback callback);
   void setConnectTimeout(uint32_t milliseconds);
+  void setMaxAuthFailures(uint8_t failures);
 
 private:
   friend class BlueMagicClientCallbacks;
+  friend class MySecurity;
 
   String _name;
   Preferences *_pref = nullptr;
@@ -105,6 +107,9 @@ private:
   uint32_t _useCounter = 0;
   int _connectedIndex = -1;
   uint32_t _connectTimeout = 10000;
+  uint8_t _maxAuthFailures = 3;
+  volatile uint8_t _authFailures[BLUEMAGIC_MAX_CAMERAS] = {0};
+  volatile int _pendingIndex = -1;
 
   static BLERemoteCharacteristic *_outgoingCameraControl;
   static BLERemoteCharacteristic *_incomingCameraControl;
@@ -137,6 +142,7 @@ private:
   int leastRecentlyUsedCamera();
   bool connectToCamera(uint8_t index);
   String readCameraName();
+  void onAuthenticationResult(bool success, int reason, bool keyMissing);
   void runScan(bool active, uint32_t seconds, bool stopAtFirstCamera);
 };
 
