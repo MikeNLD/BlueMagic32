@@ -21,6 +21,26 @@ enum CONNECTION_STATE
   CAMERA_CONNECTING = 3
 };
 
+#ifndef BLUEMAGIC_MAX_CAMERAS
+#if defined(CONFIG_NIMBLE_ENABLED) && defined(CONFIG_BT_NIMBLE_MAX_BONDS)
+#define BLUEMAGIC_MAX_CAMERAS CONFIG_BT_NIMBLE_MAX_BONDS
+#elif defined(CONFIG_NIMBLE_ENABLED)
+#define BLUEMAGIC_MAX_CAMERAS 3
+#else
+#define BLUEMAGIC_MAX_CAMERAS 8
+#endif
+#endif
+
+#define BLUEMAGIC_CAMERA_NAME_LENGTH 32
+
+struct BlueMagicCameraRecord
+{
+  char address[18];
+  uint8_t addressType;
+  char name[BLUEMAGIC_CAMERA_NAME_LENGTH + 1];
+  uint32_t lastUsed;
+};
+
 typedef std::function<uint32_t()> PinCodeCallback;
 
 class BlueMagicClientCallbacks;
@@ -57,14 +77,15 @@ private:
   bool _ownsPref = false;
   bool _init = false;
 
-  bool _authenticated = false;
   volatile int _connected = CAMERA_DISCONNECTED;
 
   BLEClient *_client = nullptr;
   BlueMagicClientCallbacks *_clientCallbacks = nullptr;
 
-  BLEAddress _cameraAddress;
-  bool _hasCameraAddress = false;
+  BlueMagicCameraRecord _cameras[BLUEMAGIC_MAX_CAMERAS];
+  uint8_t _cameraCount = 0;
+  uint32_t _useCounter = 0;
+  int _connectedIndex = -1;
 
   static BLERemoteCharacteristic *_outgoingCameraControl;
   static BLERemoteCharacteristic *_incomingCameraControl;
@@ -80,15 +101,19 @@ private:
   void onCameraDisconnected();
 
   int connected();
-  bool authenticated();
 
   void setController();
 
   void setState(CONNECTION_STATE state);
-  void setAuthentication(bool authenticated);
-  bool getAuthentication();
-  void setCameraAddress(BLEAddress address);
-  BLEAddress *getCameraAddress();
+
+  void loadCameras();
+  void saveCameras();
+  void migrateLegacyPairing();
+  BLEAddress cameraBLEAddress(uint8_t index);
+  int findCamera(BLEAddress address);
+  int lastUsedCamera();
+  int addCamera(BLEAddress address, String name);
+  void markUsed(uint8_t index);
 };
 
 #endif

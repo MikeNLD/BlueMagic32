@@ -302,16 +302,8 @@ void BlueMagicCameraConnection::begin(String name)
     _ownsPref = true;
   }
 
-  _pref->begin(_name.c_str(), false);
-
-  setAuthentication(_pref->getBool("authenticated", false));
-  String addr = _pref->getString("cameraAddress", "");
-  if (addr.length() > 0)
-  {
-    setCameraAddress(BLEAddress(addr.c_str()));
-  }
-
-  _pref->end();
+  loadCameras();
+  migrateLegacyPairing();
 
   BLEDevice::init(_name);
   BLEDevice::setPower(ESP_PWR_LVL_P9);
@@ -330,7 +322,7 @@ void BlueMagicCameraConnection::begin(String name)
 
 bool BlueMagicCameraConnection::scan(bool active, int duration)
 {
-  if (getAuthentication() && getCameraAddress() != nullptr)
+  if (_cameraCount > 0)
   {
     return false;
   }
@@ -366,6 +358,7 @@ void BlueMagicCameraConnection::setPinCodeCallback(PinCodeCallback callback)
 void BlueMagicCameraConnection::onCameraDisconnected()
 {
   setState(CAMERA_DISCONNECTED);
+  _connectedIndex = -1;
   _outgoingCameraControl = nullptr;
   _incomingCameraControl = nullptr;
   _timecode = nullptr;
@@ -478,25 +471,113 @@ void BlueMagicCameraConnection::setState(CONNECTION_STATE state)
   _connected = state;
 }
 
-void BlueMagicCameraConnection::setAuthentication(bool authenticated)
+void BlueMagicCameraConnection::loadCameras()
 {
-  _authenticated = authenticated;
+  _cameraCount = 0;
+  _useCounter = 0;
+  _pref->begin(_name.c_str(), false);
+  uint8_t count = _pref->getUChar("camcount", 0);
+  if (_pref->getUChar("camversion", 0) == 1 && count <= BLUEMAGIC_MAX_CAMERAS &&
+      _pref->getBytesLength("cameras") == count * sizeof(BlueMagicCameraRecord))
+  {
+    _pref->getBytes("cameras", _cameras, count * sizeof(BlueMagicCameraRecord));
+    _cameraCount = count;
+    _useCounter = _pref->getULong("camuse", 0);
+  }
+  _pref->end();
 }
 
-bool BlueMagicCameraConnection::getAuthentication()
+void BlueMagicCameraConnection::saveCameras()
 {
-  return _authenticated;
+  _pref->begin(_name.c_str(), false);
+  _pref->putUChar("camversion", 1);
+  _pref->putUChar("camcount", _cameraCount);
+  _pref->putULong("camuse", _useCounter);
+  if (_cameraCount > 0)
+  {
+    _pref->putBytes("cameras", _cameras, _cameraCount * sizeof(BlueMagicCameraRecord));
+  }
+  else
+  {
+    _pref->remove("cameras");
+  }
+  _pref->end();
 }
 
-void BlueMagicCameraConnection::setCameraAddress(BLEAddress address)
+void BlueMagicCameraConnection::migrateLegacyPairing()
 {
-  _cameraAddress = address;
-  _hasCameraAddress = true;
+  _pref->begin(_name.c_str(), false);
+  bool hasLegacy = _pref->isKey("cameraAddress") || _pref->isKey("authenticated");
+  String address = _pref->getString("cameraAddress", "");
+  bool authenticated = _pref->getBool("authenticated", false);
+  if (hasLegacy)
+  {
+    _pref->remove("cameraAddress");
+    _pref->remove("authenticated");
+  }
+  _pref->end();
+
+  if (hasLegacy && authenticated && address.length() == 17 && _cameraCount == 0)
+  {
+    addCamera(BLEAddress(address), "");
+  }
 }
 
-BLEAddress *BlueMagicCameraConnection::getCameraAddress()
+BLEAddress BlueMagicCameraConnection::cameraBLEAddress(uint8_t index)
 {
-  return _hasCameraAddress ? &_cameraAddress : nullptr;
+  return BLEAddress(String(_cameras[index].address), _cameras[index].addressType);
+}
+
+int BlueMagicCameraConnection::findCamera(BLEAddress address)
+{
+  String text = address.toString();
+  for (uint8_t i = 0; i < _cameraCount; i++)
+  {
+    if (text.equalsIgnoreCase(_cameras[i].address))
+    {
+      return i;
+    }
+  }
+  return -1;
+}
+
+int BlueMagicCameraConnection::lastUsedCamera()
+{
+  int result = -1;
+  for (uint8_t i = 0; i < _cameraCount; i++)
+  {
+    if (result < 0 || _cameras[i].lastUsed > _cameras[result].lastUsed)
+    {
+      result = i;
+    }
+  }
+  return result;
+}
+
+int BlueMagicCameraConnection::addCamera(BLEAddress address, String name)
+{
+  int index = findCamera(address);
+  if (index < 0)
+  {
+    if (_cameraCount >= BLUEMAGIC_MAX_CAMERAS)
+    {
+      return -1;
+    }
+    index = _cameraCount++;
+    BlueMagicCameraRecord &record = _cameras[index];
+    memset(&record, 0, sizeof(record));
+    strncpy(record.address, address.toString().c_str(), sizeof(record.address) - 1);
+    record.addressType = address.getType();
+    strncpy(record.name, name.c_str(), BLUEMAGIC_CAMERA_NAME_LENGTH);
+  }
+  markUsed(index);
+  return index;
+}
+
+void BlueMagicCameraConnection::markUsed(uint8_t index)
+{
+  _cameras[index].lastUsed = ++_useCounter;
+  saveCameras();
 }
 
 BlueMagicCameraController *BlueMagicCameraConnection::connect()
@@ -511,33 +592,22 @@ BlueMagicCameraController *BlueMagicCameraConnection::connect(uint8_t index)
     return _cameraControl;
   }
 
-  bool ok = false;
-  bool scanned = scan(false, 5);
-
-  BLEAddress address;
-
-  if (scanned)
+  if (_cameraCount == 0)
   {
-    if (cameraFound || candidateFound)
+    scan(false, 5);
+    if ((cameraFound || candidateFound) && connectToServer(foundCameraAddress))
     {
-      address = foundCameraAddress;
-      ok = connectToServer(address);
+      _connectedIndex = addCamera(foundCameraAddress, "");
+      return _cameraControl;
     }
-  }
-  else
-  {
-    address = *getCameraAddress();
-    ok = connectToServer(address);
+    return nullptr;
   }
 
-  if (ok)
+  int last = lastUsedCamera();
+  if (connectToServer(cameraBLEAddress(last)))
   {
-    setAuthentication(true);
-    _pref->begin(_name.c_str(), false);
-    _pref->putString("cameraAddress", address.toString().c_str());
-    _pref->putBool("authenticated", getAuthentication());
-    _pref->end();
-    setCameraAddress(address);
+    _connectedIndex = last;
+    markUsed(last);
     return _cameraControl;
   }
 
@@ -560,11 +630,6 @@ void BlueMagicCameraConnection::clearPairing()
     disconnect();
   }
 #if defined(CONFIG_BLUEDROID_ENABLED)
-  if (getCameraAddress() != nullptr)
-  {
-    esp_ble_remove_bond_device(getCameraAddress()->getNative());
-  }
-
   int dev_num = esp_ble_get_bond_device_num();
 
   esp_ble_bond_dev_t *dev_list = (esp_ble_bond_dev_t *)malloc(sizeof(esp_ble_bond_dev_t) * dev_num);
@@ -580,10 +645,6 @@ void BlueMagicCameraConnection::clearPairing()
 #else
   ble_store_clear();
 #endif
-  setAuthentication(false);
-  _hasCameraAddress = false;
-  _pref->begin(_name.c_str(), false);
-  _pref->putString("cameraAddress", "");
-  _pref->putBool("authenticated", getAuthentication());
-  _pref->end();
+  _cameraCount = 0;
+  saveCameras();
 }
